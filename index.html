@@ -1,331 +1,749 @@
-import React, { useState } from 'react';
-import { 
-  Shirt, Wind, RotateCcw, Droplets, 
-  Wrench, AlertTriangle, ChevronRight, 
-  ArrowLeft, Waves, Sparkles, BookOpen,
-  FlaskConical, Hand, User, Power
-} from 'lucide-react';
-
-// 模擬洗衣機面板按鈕的元件
-const PanelButton = ({ label, subLabel, isMain = false }: { label: string, subLabel?: string, isMain?: boolean }) => (
-  <span className={`
-    inline-flex flex-col items-center justify-center 
-    align-middle mx-1 my-0.5 px-2 py-1 
-    border-2 border-slate-600 rounded-md 
-    bg-slate-50 shadow-sm select-none
-    ${isMain ? 'min-w-[3.5rem] min-h-[3rem]' : 'min-w-[3rem] min-h-[2.5rem]'}
-  `}>
-    <span className="text-slate-800 font-bold text-sm leading-tight">{label}</span>
-    {subLabel && <span className="text-[10px] text-slate-500 leading-none scale-90">{subLabel}</span>}
-  </span>
-);
-
-// 步驟數字方塊
-const StepNumber = ({ num }: { num: number }) => (
-  <div className="flex-shrink-0 w-10 h-10 bg-slate-700 text-white rounded-lg flex items-center justify-center text-xl font-bold shadow-md">
-    {num}
-  </div>
-);
-
-const WashingMachineFullGuide = () => {
-  const [activeTab, setActiveTab] = useState<'wash' | 'maintenance' | 'error' | null>(null);
-  const [selectedItem, setSelectedItem] = useState<string | null>(null);
-
-  // 解析文字並將【關鍵字】轉換為按鈕元件
-  const renderInstruction = (text: string) => {
-    const parts = text.split(/(【.*?】)/);
-    return parts.map((part, index) => {
-      if (part.startsWith('【') && part.endsWith('】')) {
-        const key = part.slice(1, -1);
-        if (key === '電源') return <PanelButton key={index} label="電源" subLabel="開/關" isMain />;
-        if (key === '啟動/暫停') return <PanelButton key={index} label="啟動" subLabel="暫停" isMain />;
-        if (key === '行程') return <PanelButton key={index} label="行程" />;
-        if (key === '水量') return <PanelButton key={index} label="水量" />;
-        if (key === '洗衣') return <PanelButton key={index} label="洗衣" />;
-        if (key === '洗清') return <PanelButton key={index} label="洗清" />;
-        if (key === '脫水') return <PanelButton key={index} label="脫水" />;
-        if (key === '溫水行程') return <PanelButton key={index} label="溫水" subLabel="行程" />;
-        if (key === '自動投入') return <PanelButton key={index} label="自動" subLabel="投入" />;
-        return <PanelButton key={index} label={key} />;
-      }
-      return <span key={index}>{part}</span>;
-    });
-  };
-
-  // 洗衣情境資料
-  const washScenarios = [
-    {
-      id: 'daily_auto',
-      label: '日常洗衣 (自動投洗劑)',
-      sub: '懶人專用：面板設定一次就好',
-      icon: <FlaskConical className="w-6 h-6" />,
-      color: 'bg-blue-100 text-blue-700',
-      steps: [
-        { t: '開機', d: '按一下【電源】鍵。' },
-        { t: '檢查', d: '看一下【自動投入】燈有沒有亮？(要有亮紅燈才會自己加喔)' },
-        { t: '丟衣', d: '衣服放八分滿，蓋子蓋好。' },
-        { t: '啟動', d: '按大顆的【啟動/暫停】鍵。機器會自己秤重，不用管它。' }
-      ]
-    },
-    {
-      id: 'daily_manual',
-      label: '日常洗衣 (手動加洗劑)',
-      sub: '用洗衣球、香香豆必看！',
-      icon: <Hand className="w-6 h-6" />,
-      color: 'bg-emerald-100 text-emerald-700',
-      steps: [
-        { t: '開機', d: '按【電源】打開。' },
-        { t: '關閉', d: '先按【自動投入】鍵，把燈按到「熄滅」。(這步最重要！不然會重複加洗劑)' },
-        { t: '投劑', d: '洗衣球直接丟桶內；粉末或液體倒在中間的「手動投入口」。' },
-        { t: '啟動', d: '按【啟動/暫停】開始洗。' }
-      ]
-    },
-    {
-      id: 'grandma',
-      label: '阿嬤的衣服 (少量/已泡過)',
-      sub: '只要洗清+脫水，省水模式',
-      icon: <User className="w-6 h-6" />,
-      color: 'bg-orange-100 text-orange-700',
-      steps: [
-        { t: '放衣', d: '阿嬤衣服放進去鋪平。按【電源】。' },
-        { t: '取消', d: '一直按【洗衣】鍵，按到上面的燈「熄滅」。(這樣就不會再搓揉了)' },
-        { t: '省水', d: '按【水量】鍵，選「極少」或「少量」。' },
-        { t: '確認', d: '確認面板只有「洗清」跟「脫水」燈亮著。' },
-        { t: '啟動', d: '按【啟動/暫停】。' }
-      ]
-    },
-    {
-      id: 'blanket',
-      label: '洗被單/大毛毯',
-      sub: '大件行程 / 千萬別用洗衣網',
-      icon: <BookOpen className="w-6 h-6" />,
-      color: 'bg-indigo-100 text-indigo-700',
-      steps: [
-        { t: '摺疊', d: '被子摺成M字型或者是屏風那樣放入。按【電源】。' },
-        { t: '選程', d: '按【行程】鍵，燈號會跳，選到「大件」那格亮起來。' },
-        { t: '啟動', d: '按【啟動/暫停】。(記得不要用洗衣網，會撞桶子跳U13)' }
-      ]
-    },
-    {
-      id: 'more_water',
-      label: '覺得水太少？手動加水',
-      sub: '想要水淹過衣服多一點',
-      icon: <Waves className="w-6 h-6" />,
-      color: 'bg-sky-100 text-sky-700',
-      steps: [
-        { t: '暫停', d: '洗到一半覺得水不夠，按【啟動/暫停】讓它停下來。' },
-        { t: '加水', d: '一直按【水量】鍵，調到妳要的高度 (例如：高)。' },
-        { t: '繼續', d: '再按【啟動/暫停】，它就會補水進去了。' }
-      ]
-    }
-  ];
-
-  // 保養資料
-  const maintenanceItems = [
-    {
-      id: 'lint_filter',
-      label: '每次洗完：清濾網',
-      desc: '那個「絲屑過濾盒」在桶子裡，每次洗完都要拿出來摳一摳，不然下次洗衣服會沾毛屑。',
-      icon: <Sparkles className="w-5 h-5" />
-    },
-    {
-      id: 'tub_clean',
-      label: '每個月：槽洗淨',
-      desc: '按【電源】→ 按【行程】選到「槽洗淨」→ 倒清潔劑 → 按【啟動/暫停】。這要洗8小時，睡前弄。',
-      icon: <RotateCcw className="w-5 h-5" />
-    },
-    {
-      id: 'dispenser',
-      label: '每3個月：洗劑盒保養',
-      desc: '左上角那個自動投入盒，抽出來用溫水沖。管路也可以用溫水跑清潔模式(長按自動投入鍵)。',
-      icon: <Droplets className="w-5 h-5" />
-    }
-  ];
-
-  // 故障代碼
-  const errorCodes = [
-    { code: 'U11', title: '水排不掉', fix: '檢查排水管是不是被壓到了？或是管子翹太高？' },
-    { code: 'U12', title: '蓋子沒蓋好', fix: '蓋子打開再用力蓋好一次。也有可能是衣服夾到蓋子。' },
-    { code: 'U13', title: '衣服不平衡', fix: '脫水時「碰碰碰」。按暫停，把纏在一起的衣服拉鬆、鋪平。' },
-    { code: 'U14', title: '水進不來', fix: '水龍頭有沒有開？是不是停水？還是濾網塞住了？' },
-    { code: 'H..', title: 'H開頭代碼', fix: '這是機器故障碼。請拔掉插頭，打電話叫修。' }
-  ];
-
-  const renderContent = () => {
-    // 1. 洗衣情境模式
-    if (activeTab === 'wash') {
-      if (selectedItem) {
-        const scenario = washScenarios.find(s => s.id === selectedItem);
-        return (
-          <div className="animate-in slide-in-from-right duration-300">
-            <button onClick={() => setSelectedItem(null)} className="mb-4 text-slate-500 flex items-center gap-1 text-sm hover:text-slate-800 transition-colors">
-              <ArrowLeft className="w-4 h-4" /> 返回列表
-            </button>
-            <div className={`p-4 rounded-t-xl ${scenario?.color} bg-opacity-20 border-b border-slate-100`}>
-              <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                {scenario?.icon} {scenario?.label}
-              </h3>
-              <p className="text-slate-600 text-sm mt-1">{scenario?.sub}</p>
-            </div>
-            <div className="bg-white p-5 rounded-b-xl border border-t-0 border-slate-200 space-y-6">
-              {scenario?.steps.map((step, idx) => (
-                <div key={idx} className="flex gap-4 items-start">
-                  <StepNumber num={idx + 1} />
-                  <div className="flex-1 pt-1">
-                    <div className="font-bold text-slate-800 text-base mb-1">{step.t}</div>
-                    <div className="text-slate-600 text-base leading-relaxed flex flex-wrap items-center">
-                      {renderInstruction(step.d)}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      }
-      return (
-        <div className="grid gap-3">
-          {washScenarios.map(s => (
-            <button key={s.id} onClick={() => setSelectedItem(s.id)} 
-              className="flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md hover:border-blue-300 transition-all text-left group">
-              <div className={`p-3 rounded-full ${s.color} bg-opacity-20 group-hover:scale-110 transition-transform`}>{s.icon}</div>
-              <div className="flex-1">
-                <div className="font-bold text-slate-800 text-lg">{s.label}</div>
-                <div className="text-sm text-slate-500 mt-1">{s.sub}</div>
-              </div>
-              <ChevronRight className="w-6 h-6 text-slate-300 group-hover:text-blue-400" />
-            </button>
-          ))}
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>阿好姐的洗衣管家</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f1f5f9;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 448px;
+            margin: 0 auto;
+            background: #f8fafc;
+            min-height: 700px;
+            border-radius: 24px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+            border: 4px solid #cbd5e1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: #1e293b;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .header h2 {
+            font-size: 20px;
+            font-weight: bold;
+            letter-spacing: 0.05em;
+        }
+        
+        .back-btn {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: white;
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 50%;
+            display: none;
+        }
+        
+        .back-btn:hover {
+            background: #334155;
+        }
+        
+        .back-btn.show {
+            display: block;
+        }
+        
+        .content {
+            padding: 16px;
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .btn-main {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            padding: 24px;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 16px;
+            margin-bottom: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: left;
+        }
+        
+        .btn-main:hover {
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-color: #93c5fd;
+        }
+        
+        .btn-main.blue-hover:hover {
+            border-color: #93c5fd;
+        }
+        
+        .btn-main.emerald-hover:hover {
+            border-color: #a7f3d0;
+        }
+        
+        .btn-main.rose-hover:hover {
+            border-color: #fbcfe8;
+        }
+        
+        .icon-circle {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: transform 0.3s;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        .btn-main:hover .icon-circle {
+            transform: scale(1.1);
+        }
+        
+        .btn-main-text {
+            flex: 1;
+        }
+        
+        .btn-main-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+        
+        .btn-main-sub {
+            font-size: 14px;
+            color: #78909c;
+            margin-top: 4px;
+        }
+        
+        .chevron-right {
+            width: 32px;
+            height: 32px;
+            flex-shrink: 0;
+            color: #cbd5e1;
+            transition: color 0.3s;
+        }
+        
+        .btn-main:hover .chevron-right {
+            color: #60a5fa;
+        }
+        
+        .scenario-grid {
+            display: grid;
+            gap: 12px;
+        }
+        
+        .scenario-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: left;
+        }
+        
+        .scenario-card:hover {
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-color: #93c5fd;
+        }
+        
+        .scenario-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background-size: 24px;
+            background-position: center;
+            background-repeat: no-repeat;
+            font-size: 0;
+        }
+        
+        .scenario-card:hover .scenario-icon {
+            transform: scale(1.1);
+        }
+        
+        .scenario-text {
+            flex: 1;
+        }
+        
+        .scenario-title {
+            font-weight: bold;
+            color: #1e293b;
+            font-size: 16px;
+        }
+        
+        .scenario-sub {
+            font-size: 12px;
+            color: #78909c;
+            margin-top: 4px;
+        }
+        
+        .step-container {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            align-items: flex-start;
+        }
+        
+        .step-number {
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+            background: #475569;
+            color: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .step-text {
+            flex: 1;
+        }
+        
+        .step-title {
+            font-weight: bold;
+            color: #1e293b;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        
+        .step-desc {
+            color: #64748b;
+            font-size: 16px;
+            line-height: 1.6;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            align-items: center;
+        }
+        
+        .panel-button {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0 4px 4px 0;
+            padding: 8px;
+            border: 2px solid #475569;
+            border-radius: 6px;
+            background: #f1f5f9;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            user-select: none;
+            min-width: 48px;
+            min-height: 40px;
+            gap: 2px;
+        }
+        
+        .panel-button.main {
+            min-width: 56px;
+            min-height: 48px;
+        }
+        
+        .panel-label {
+            color: #1e293b;
+            font-weight: bold;
+            font-size: 13px;
+            line-height: 1.2;
+            text-align: center;
+        }
+        
+        .panel-sublabel {
+            color: #94a3b8;
+            font-size: 9px;
+            line-height: 1;
+            text-align: center;
+        }
+        
+        .header-color {
+            padding: 16px;
+            border-radius: 12px 12px 0 0;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 16px;
+        }
+        
+        .header-color h3 {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .header-color p {
+            font-size: 14px;
+            margin-top: 4px;
+        }
+        
+        .detail-card {
+            background: white;
+            padding: 20px;
+            border-radius: 0 0 12px 12px;
+            border: 1px solid #e2e8f0;
+            border-top: none;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 14px;
+            margin-bottom: 16px;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+        
+        .back-link:hover {
+            color: #1e293b;
+        }
+        
+        .maintenance-items {
+            display: grid;
+            gap: 16px;
+        }
+        
+        .maintenance-item {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+        
+        .maintenance-icon {
+            width: 32px;
+            height: 32px;
+            background: #f1f5f9;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            flex-shrink: 0;
+            margin-top: 4px;
+        }
+        
+        .maintenance-content h4 {
+            font-weight: bold;
+            color: #1e293b;
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+        
+        .maintenance-content p {
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .error-card {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+            background: white;
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            margin-bottom: 12px;
+            transition: background 0.3s;
+        }
+        
+        .error-card:hover {
+            background: #f8fafc;
+        }
+        
+        .error-code {
+            background: #fee2e2;
+            color: #dc2626;
+            font-weight: bold;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 18px;
+            min-width: 64px;
+            text-align: center;
+        }
+        
+        .error-content h5 {
+            font-weight: bold;
+            color: #1e293b;
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+        
+        .error-content p {
+            color: #64748b;
+            font-size: 13px;
+        }
+        
+        .green-box {
+            background: #dcfce7;
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid #bbf7d0;
+            margin-bottom: 16px;
+        }
+        
+        .green-box h3 {
+            font-weight: bold;
+            color: #166534;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .green-box p {
+            color: #047857;
+            font-size: 13px;
+        }
+        
+        .footer {
+            padding: 16px;
+            text-align: center;
+            color: #cbd5e1;
+            font-size: 12px;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        @media (max-height: 800px) {
+            .container {
+                min-height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <button class="back-btn" id="backBtn">←</button>
+            <h2 id="headerTitle">阿好姐的洗衣管家</h2>
         </div>
-      );
-    }
-
-    // 2. 保養模式
-    if (activeTab === 'maintenance') {
-      return (
-        <div className="space-y-4">
-          <div className="bg-green-50 p-4 rounded-xl border border-green-100 mb-4">
-            <h3 className="font-bold text-green-800 flex items-center gap-2 mb-2">
-              <Wrench className="w-5 h-5" /> 阿勇保養小撇步
-            </h3>
-            <p className="text-sm text-green-700">
-              洗衣機跟車子一樣要保養啦！濾網如果不清，衣服洗完會黏毛屑；槽洗淨如果不做，衣服會有海帶湯的味道喔！
-            </p>
-          </div>
-          {maintenanceItems.map(m => (
-            <div key={m.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-              <div className="flex items-start gap-4">
-                <div className="p-2 bg-slate-100 rounded-lg text-slate-600 mt-1">{m.icon}</div>
-                <div>
-                  <h4 className="font-bold text-slate-800 text-lg">{m.label}</h4>
-                  <p className="text-slate-600 mt-2 leading-relaxed flex flex-wrap items-center text-sm">
-                    {renderInstruction(m.desc)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    // 3. 故障代碼模式
-    if (activeTab === 'error') {
-      return (
-        <div className="space-y-3">
-          <div className="text-center mb-4">
-            <p className="text-sm text-slate-500">機器嗶嗶叫？免緊張，對照一下：</p>
-          </div>
-          {errorCodes.map((e, idx) => (
-            <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex gap-4 items-start hover:bg-slate-50 transition-colors">
-              <div className="bg-red-100 text-red-600 font-bold px-3 py-2 rounded text-xl min-w-[4rem] text-center">
-                {e.code}
-              </div>
-              <div>
-                <div className="font-bold text-slate-800 text-lg">{e.title}</div>
-                <div className="text-slate-600 mt-1 text-sm">{e.fix}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    // 首頁選單
-    return (
-      <div className="grid grid-cols-1 gap-4">
-        <button onClick={() => setActiveTab('wash')} className="h-32 bg-white border-2 border-blue-100 hover:border-blue-400 rounded-2xl shadow-sm hover:shadow-md flex items-center px-6 gap-6 transition-all group">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform shadow-inner">
-             <Waves className="w-8 h-8" />
-          </div>
-          <div className="text-left flex-1">
-            <div className="text-2xl font-bold text-slate-800 group-hover:text-blue-700">洗衣/水位設定</div>
-            <div className="text-slate-500 text-sm mt-1">阿嬤衣服、自動/手動洗劑、大件被單</div>
-          </div>
-          <ChevronRight className="w-8 h-8 text-slate-300 group-hover:text-blue-400" />
-        </button>
-
-        <button onClick={() => setActiveTab('maintenance')} className="h-28 bg-white border-2 border-emerald-100 hover:border-emerald-400 rounded-2xl shadow-sm hover:shadow-md flex items-center px-6 gap-6 transition-all group">
-           <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform shadow-inner">
-             <Sparkles className="w-7 h-7" />
-          </div>
-          <div className="text-left flex-1">
-            <div className="text-xl font-bold text-slate-800 group-hover:text-emerald-700">清潔與保養</div>
-            <div className="text-slate-500 text-sm mt-1">濾網清理、槽洗淨</div>
-          </div>
-          <ChevronRight className="w-8 h-8 text-slate-300 group-hover:text-emerald-400" />
-        </button>
-
-        <button onClick={() => setActiveTab('error')} className="h-28 bg-white border-2 border-rose-100 hover:border-rose-400 rounded-2xl shadow-sm hover:shadow-md flex items-center px-6 gap-6 transition-all group">
-           <div className="w-14 h-14 bg-rose-100 rounded-full flex items-center justify-center text-rose-600 group-hover:scale-110 transition-transform shadow-inner">
-             <AlertTriangle className="w-7 h-7" />
-          </div>
-          <div className="text-left flex-1">
-            <div className="text-xl font-bold text-slate-800 group-hover:text-rose-700">故障代碼查詢</div>
-            <div className="text-slate-500 text-sm mt-1">U11, U13 燈號怎麼辦</div>
-          </div>
-          <ChevronRight className="w-8 h-8 text-slate-300 group-hover:text-rose-400" />
-        </button>
-      </div>
-    );
-  };
-
-  return (
-    <div className="max-w-md mx-auto bg-slate-50 min-h-[700px] rounded-3xl shadow-2xl overflow-hidden font-sans border-4 border-slate-200">
-      {/* Header */}
-      <div className="bg-slate-800 text-white p-5 text-center relative shadow-lg">
-        {activeTab && (
-          <button 
-            onClick={() => {
-              setSelectedItem(null);
-              setActiveTab(null);
-            }} 
-            className="absolute left-4 top-1/2 -translate-y-1/2 p-2 hover:bg-slate-700 rounded-full transition-colors"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-        )}
-        <h2 className="text-xl font-bold tracking-wide">
-          {activeTab === 'wash' ? '洗衣/水位設定' : 
-           activeTab === 'maintenance' ? '保養大法' : 
-           activeTab === 'error' ? '代碼翻譯蒟蒻' : '阿好姐的洗衣管家'}
-        </h2>
-      </div>
-
-      {/* Content Area */}
-      <div className="p-4 bg-slate-50">
-        {renderContent()}
-      </div>
-      
-      {/* Footer Hint */}
-      {!activeTab && (
-         <div className="p-4 text-center text-slate-400 text-sm">
-           V5.0 阿嬤友善視覺版
-         </div>
-      )}
+        
+        <div class="content" id="content"></div>
+        
+        <div class="footer" id="footer">V5.0 阿嬤友善視覺版</div>
     </div>
-  );
-};
 
-export default WashingMachineFullGuide;
-
+    <script>
+        const app = {
+            activeTab: null,
+            selectedItem: null,
+            
+            washScenarios: [
+                {
+                    id: 'daily_auto',
+                    label: '日常洗衣 (自動投洗劑)',
+                    sub: '懶人專用：面板設定一次就好',
+                    color: 'bg-blue',
+                    colorClass: 'blue',
+                    steps: [
+                        { t: '開機', d: '按一下【電源】鍵。' },
+                        { t: '檢查', d: '看一下【自動投入】燈有沒有亮？(要有亮紅燈才會自己加喔)' },
+                        { t: '丟衣', d: '衣服放八分滿，蓋子蓋好。' },
+                        { t: '啟動', d: '按大顆的【啟動/暫停】鍵。機器會自己秤重，不用管它。' }
+                    ]
+                },
+                {
+                    id: 'daily_manual',
+                    label: '日常洗衣 (手動加洗劑)',
+                    sub: '用洗衣球、香香豆必看！',
+                    color: 'bg-emerald',
+                    colorClass: 'emerald',
+                    steps: [
+                        { t: '開機', d: '按【電源】打開。' },
+                        { t: '關閉', d: '先按【自動投入】鍵，把燈按到「熄滅」。(這步最重要！不然會重複加洗劑)' },
+                        { t: '投劑', d: '洗衣球直接丟桶內；粉末或液體倒在中間的「手動投入口」。' },
+                        { t: '啟動', d: '按【啟動/暫停】開始洗。' }
+                    ]
+                },
+                {
+                    id: 'grandma',
+                    label: '阿嬤的衣服 (少量/已泡過)',
+                    sub: '只要洗清+脫水，省水模式',
+                    color: 'bg-orange',
+                    colorClass: 'orange',
+                    steps: [
+                        { t: '放衣', d: '阿嬤衣服放進去鋪平。按【電源】。' },
+                        { t: '取消', d: '一直按【洗衣】鍵，按到上面的燈「熄滅」。(這樣就不會再搓揉了)' },
+                        { t: '省水', d: '按【水量】鍵，選「極少」或「少量」。' },
+                        { t: '確認', d: '確認面板只有「洗清」跟「脫水」燈亮著。' },
+                        { t: '啟動', d: '按【啟動/暫停】。' }
+                    ]
+                },
+                {
+                    id: 'blanket',
+                    label: '洗被單/大毛毯',
+                    sub: '大件行程 / 千萬別用洗衣網',
+                    color: 'bg-indigo',
+                    colorClass: 'indigo',
+                    steps: [
+                        { t: '摺疊', d: '被子摺成M字型或者是屏風那樣放入。按【電源】。' },
+                        { t: '選程', d: '按【行程】鍵，燈號會跳，選到「大件」那格亮起來。' },
+                        { t: '啟動', d: '按【啟動/暫停】。(記得不要用洗衣網，會撞桶子跳U13)' }
+                    ]
+                },
+                {
+                    id: 'more_water',
+                    label: '覺得水太少？手動加水',
+                    sub: '想要水淹過衣服多一點',
+                    color: 'bg-sky',
+                    colorClass: 'sky',
+                    steps: [
+                        { t: '暫停', d: '洗到一半覺得水不夠，按【啟動/暫停】讓它停下來。' },
+                        { t: '加水', d: '一直按【水量】鍵，調到妳要的高度 (例如：高)。' },
+                        { t: '繼續', d: '再按【啟動/暫停】，它就會補水進去了。' }
+                    ]
+                }
+            ],
+            
+            maintenanceItems: [
+                {
+                    id: 'lint_filter',
+                    label: '每次洗完：清濾網',
+                    desc: '那個「絲屑過濾盒」在桶子裡，每次洗完都要拿出來摳一摳，不然下次洗衣服會沾毛屑。'
+                },
+                {
+                    id: 'tub_clean',
+                    label: '每個月：槽洗淨',
+                    desc: '按【電源】→ 按【行程】選到「槽洗淨」→ 倒清潔劑 → 按【啟動/暫停】。這要洗8小時，睡前弄。'
+                },
+                {
+                    id: 'dispenser',
+                    label: '每3個月：洗劑盒保養',
+                    desc: '左上角那個自動投入盒，抽出來用溫水沖。管路也可以用溫水跑清潔模式(長按自動投入鍵)。'
+                }
+            ],
+            
+            errorCodes: [
+                { code: 'U11', title: '水排不掉', fix: '檢查排水管是不是被壓到了？或是管子翹太高？' },
+                { code: 'U12', title: '蓋子沒蓋好', fix: '蓋子打開再用力蓋好一次。也有可能是衣服夾到蓋子。' },
+                { code: 'U13', title: '衣服不平衡', fix: '脫水時「碰碰碰」。按暫停，把纏在一起的衣服拉鬆、鋪平。' },
+                { code: 'U14', title: '水進不來', fix: '水龍頭有沒有開？是不是停水？還是濾網塞住了？' },
+                { code: 'H..', title: 'H開頭代碼', fix: '這是機器故障碼。請拔掉插頭，打電話叫修。' }
+            ],
+            
+            renderInstruction(text) {
+                const parts = text.split(/(【.*?】)/);
+                let html = '';
+                parts.forEach(part => {
+                    if (part.startsWith('【') && part.endsWith('】')) {
+                        const key = part.slice(1, -1);
+                        html += this.createPanelButton(key);
+                    } else {
+                        html += part;
+                    }
+                });
+                return html;
+            },
+            
+            createPanelButton(label, subLabel = '', isMain = false) {
+                const mainClass = isMain ? 'main' : '';
+                const sub = subLabel ? `<span class="panel-sublabel">${subLabel}</span>` : '';
+                return `<span class="panel-button ${mainClass}"><span class="panel-label">${label}</span>${sub}</span>`;
+            },
+            
+            showHome() {
+                app.activeTab = null;
+                app.selectedItem = null;
+                document.getElementById('headerTitle').textContent = '阿好姐的洗衣管家';
+                document.getElementById('backBtn').classList.remove('show');
+                document.getElementById('footer').classList.remove('hidden');
+                
+                let html = `
+                    <button class="btn-main blue-hover" onclick="app.goToWash()">
+                        <div class="icon-circle" style="background: #dbeafe; color: #2563eb;">💧</div>
+                        <div class="btn-main-text">
+                            <div class="btn-main-title">洗衣/水位設定</div>
+                            <div class="btn-main-sub">阿嬤衣服、自動/手動洗劑、大件被單</div>
+                        </div>
+                        <span class="chevron-right">›</span>
+                    </button>
+                    <button class="btn-main emerald-hover" onclick="app.goToMaintenance()">
+                        <div class="icon-circle" style="background: #dcfce7; color: #059669;">✨</div>
+                        <div class="btn-main-text">
+                            <div class="btn-main-title">清潔與保養</div>
+                            <div class="btn-main-sub">濾網清理、槽洗淨</div>
+                        </div>
+                        <span class="chevron-right">›</span>
+                    </button>
+                    <button class="btn-main rose-hover" onclick="app.goToError()">
+                        <div class="icon-circle" style="background: #fee2e2; color: #dc2626;">⚠️</div>
+                        <div class="btn-main-text">
+                            <div class="btn-main-title">故障代碼查詢</div>
+                            <div class="btn-main-sub">U11, U13 燈號怎麼辦</div>
+                        </div>
+                        <span class="chevron-right">›</span>
+                    </button>
+                `;
+                document.getElementById('content').innerHTML = html;
+            },
+            
+            goToWash() {
+                app.activeTab = 'wash';
+                app.selectedItem = null;
+                document.getElementById('headerTitle').textContent = '洗衣/水位設定';
+                document.getElementById('backBtn').classList.add('show');
+                document.getElementById('footer').classList.add('hidden');
+                
+                let html = '<div class="scenario-grid">';
+                app.washScenarios.forEach(s => {
+                    html += `
+                        <div class="scenario-card" onclick="app.selectScenario('${s.id}')">
+                            <div class="scenario-icon">📝</div>
+                            <div class="scenario-text">
+                                <div class="scenario-title">${s.label}</div>
+                                <div class="scenario-sub">${s.sub}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                document.getElementById('content').innerHTML = html;
+            },
+            
+            selectScenario(scenarioId) {
+                app.selectedItem = scenarioId;
+                const scenario = app.washScenarios.find(s => s.id === scenarioId);
+                
+                let html = '<div class="back-link" onclick="app.goToWash()">← 返回列表</div>';
+                
+                const colorMap = {
+                    'blue': { bg: '#dbeafe', text: '#1e40af', light: '#eff6ff' },
+                    'emerald': { bg: '#a7f3d0', text: '#065f46', light: '#ecfdf5' },
+                    'orange': { bg: '#fed7aa', text: '#92400e', light: '#fffbeb' },
+                    'indigo': { bg: '#a5b4fc', text: '#312e81', light: '#eef2ff' },
+                    'sky': { bg: '#7dd3fc', text: '#0c2d6b', light: '#f0f9ff' }
+                };
+                
+                const color = colorMap[scenario.colorClass] || colorMap['blue'];
+                
+                html += `
+                    <div class="header-color" style="background: ${color.light}; border-bottom-color: ${color.bg};">
+                        <h3 style="color: ${color.text};">📚 ${scenario.label}</h3>
+                        <p style="color: ${color.text};">${scenario.sub}</p>
+                    </div>
+                    <div class="detail-card">
+                `;
+                
+                scenario.steps.forEach((step, idx) => {
+                    html += `
+                        <div class="step-container">
+                            <div class="step-number">${idx + 1}</div>
+                            <div class="step-text">
+                                <div class="step-title">${step.t}</div>
+                                <div class="step-desc">${app.renderInstruction(step.d)}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                document.getElementById('content').innerHTML = html;
+            },
+            
+            goToMaintenance() {
+                app.activeTab = 'maintenance';
+                app.selectedItem = null;
+                document.getElementById('headerTitle').textContent = '保養大法';
+                document.getElementById('backBtn').classList.add('show');
+                document.getElementById('footer').classList.add('hidden');
+                
+                let html = `
+                    <div class="green-box">
+                        <h3>🔧 阿勇保養小撇步</h3>
+                        <p>洗衣機跟車子一樣要保養啦！濾網如果不清，衣服洗完會黏毛屑；槽洗淨如果不做，衣服會有海帶湯的味道喔！</p>
+                    </div>
+                    <div class="maintenance-items">
+                `;
+                
+                app.maintenanceItems.forEach(m => {
+                    html += `
+                        <div class="maintenance-item">
+                            <div class="maintenance-icon">📌</div>
+                            <div class="maintenance-content">
+                                <h4>${m.label}</h4>
+                                <p>${app.renderInstruction(m.desc)}</p>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div></div>';
+                document.getElementById('content').innerHTML = html;
+            },
+            
+            goToError() {
+                app.activeTab = 'error';
+                app.selectedItem = null;
+                document.getElementById('headerTitle').textContent = '代碼翻譯蒟蒻';
+                document.getElementById('backBtn').classList.add('show');
+                document.getElementById('footer').classList.add('hidden');
+                
+                let html = '<p style="text-align: center; font-size: 13px; color: #94a3b8; margin-bottom: 16px;">機器嗶嗶叫？免緊張，對照一下：</p>';
+                
+                app.errorCodes.forEach(e => {
+                    html += `
+                        <div class="error-card">
+                            <div class="error-code">${e.code}</div>
+                            <div class="error-content">
+                                <h5>${e.title}</h5>
+                                <p>${e.fix}</p>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                document.getElementById('content').innerHTML = html;
+            },
+            
+            init() {
+                document.getElementById('backBtn').addEventListener('click', () => app.showHome());
+                app.showHome();
+            }
+        };
+        
+        app.init();
+    </script>
+</body>
+</html>
